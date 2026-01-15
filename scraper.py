@@ -162,7 +162,6 @@ class RedditScraper:
         if not self.modhash:
             self.fetch_modhash()
 
-        time.sleep(REQUEST_DELAY)
         url = f"{BASE_URL}/api/multi/user/{self.username}/m/{name}"
 
         model = {
@@ -176,7 +175,15 @@ class RedditScraper:
             "model": json.dumps(model),
             "uh": self.modhash,
         }
-        resp = self.session.put(url, data=data)
-        if resp.status_code not in (200, 201):
-            print(f"    DEBUG: status={resp.status_code}, response={resp.text[:200]}")
-        return resp.status_code in (200, 201)
+
+        # Retry with backoff for rate limiting
+        for attempt in range(3):
+            time.sleep(REQUEST_DELAY * (attempt + 1) * 2)  # 4s, 8s, 12s
+            resp = self.session.put(url, data=data)
+            if resp.status_code == 429:
+                print(f"    Rate limited, waiting...")
+                continue
+            if resp.status_code not in (200, 201):
+                print(f"    DEBUG: status={resp.status_code}, response={resp.text[:200]}")
+            return resp.status_code in (200, 201)
+        return False
