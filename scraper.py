@@ -53,17 +53,29 @@ class RedditScraper:
             self.session.cookies.set(name, value, domain=".reddit.com")
 
     def fetch_modhash(self):
-        """Fetch the modhash token needed for API actions."""
+        """Fetch the modhash token from HTML page."""
+        time.sleep(REQUEST_DELAY)
+        resp = self.session.get(f"{BASE_URL}/")
+
+        # Try to extract from HTML (more reliable with cookie auth)
+        match = re.search(r'modhash["\s:]+([a-z0-9]+)', resp.text)
+        if match:
+            self.modhash = match.group(1)
+            print("Got modhash token")
+            return
+
+        # Fallback: try JSON API
+        time.sleep(REQUEST_DELAY)
         resp = self.session.get(f"{BASE_URL}/api/me.json")
         try:
             data = resp.json()
             self.modhash = data.get("data", {}).get("modhash", "")
             if self.modhash:
-                print(f"Got modhash token")
+                print("Got modhash token")
             else:
-                print("WARNING: No modhash in response, actions may fail")
+                print("WARNING: No modhash found, write actions may fail")
         except Exception:
-            print(f"WARNING: Failed to get modhash: {resp.text[:100]}")
+            print("WARNING: Failed to get modhash")
 
     def get_subscribed_subreddits(self):
         """Scrape all subscribed subreddits."""
