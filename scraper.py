@@ -1,0 +1,139 @@
+import time
+import re
+import requests
+from bs4 import BeautifulSoup
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+BASE_URL = "https://old.reddit.com"
+REQUEST_DELAY = 2
+
+
+class RedditScraper:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": USER_AGENT})
+        self.username = None
+
+    def login(self, username, password):
+        """Login to Reddit and store session cookies."""
+        login_url = f"{BASE_URL}/api/login/{username}"
+        data = {
+            "op": "login",
+            "user": username,
+            "passwd": password,
+            "api_type": "json",
+        }
+        resp = self.session.post(login_url, data=data)
+
+        # Check if we got JSON or HTML (blocked/captcha)
+        content_type = resp.headers.get("content-type", "")
+        if "json" not in content_type:
+            raise Exception(
+                f"Reddit returned HTML instead of JSON (status {resp.status_code}). "
+                "Likely blocked or requires captcha. Use cookie auth instead."
+            )
+
+        try:
+            result = resp.json()
+        except Exception:
+            raise Exception(f"Invalid response from Reddit: {resp.text[:200]}")
+
+        if result.get("json", {}).get("errors"):
+            errors = result["json"]["errors"]
+            raise Exception(f"Login failed: {errors}")
+
+        self.username = username
+        return True
+
+    def load_cookies(self, cookies_dict):
+        """Load cookies from a dict (exported from browser)."""
+        for name, value in cookies_dict.items():
+            self.session.cookies.set(name, value, domain=".reddit.com")
+        print(f"DEBUG: Cookies set: {list(cookies_dict.keys())}")
+        print(f"DEBUG: Session cookies: {dict(self.session.cookies)}")
+
+    def get_subscribed_subreddits(self):
+        """Scrape all subscribed subreddits."""
+        subreddits = []
+        url = f"{BASE_URL}/subreddits/mine/subscriber"
+
+        while url:
+            time.sleep(REQUEST_DELAY)
+            resp = self.session.get(url)
+
+            # Debug: check if we're logged in
+            if "login" in resp.url or "you must be logged in" in resp.text.lower():
+                print(f"ERROR: Not logged in. Got redirected to: {resp.url}")
+                return []
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Find subreddit entries - use \w+ to avoid capturing combined subs with +
+            for entry in soup.select(".subscription-box .title"):
+                href = entry.get("href", "")
+                match = re.search(r"/r/(\w+)/?$", href)
+                if match:
+                    subreddits.append(match.group(1))
+
+            # Alternative selector for different page layouts
+            if not subreddits:
+                for link in soup.select("a.title"):
+                    href = link.get("href", "")
+                    match = re.search(r"/r/(\w+)/?$", href)
+                    if match:
+                        subreddits.append(match.group(1))
+
+            # Check for next page
+            next_btn = soup.select_one(".next-button a")
+            url = next_btn.get("href") if next_btn else None
+
+        return sorted(set(subreddits))
+
+    def get_multireddits(self):
+        """Get all multireddits using Reddit's JSON API."""
+        multis = []
+
+        time.sleep(REQUEST_DELAY)
+        resp = self.session.get(f"{BASE_URL}/api/multi/mine")
+
+        try:
+            data = resp.json()
+        except Exception:
+            print(f"Failed to parse multireddit response: {resp.text[:200]}")
+            return []
+
+        for multi in data:
+            name = multi.get("data", {}).get("name", "")
+            subs = [s.get("name", "") for s in multi.get("data", {}).get("subreddits", [])]
+            subs = [s for s in subs if s]  # Filter empty
+
+            if name:
+                multis.append({"name": name, "subreddits": sorted(subs)})
+
+        return multis
+
+    def subscribe_to_subreddit(self, subreddit):
+        """Subscribe to a subreddit."""
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/subscribe"
+        data = {
+            "action": "sub",
+            "sr_name": subreddit,
+        }
+        resp = self.session.post(url, data=data)
+        return resp.status_code == 200
+
+    def create_multireddit(self, name, subreddits, description=""):
+        """Create a new multireddit."""
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/multi/user/{self.username}/m/{name}"
+
+        model = {
+            "display_name": name,
+            "subreddits": [{"name": s} for s in subreddits],
+            "description_md": description,
+            "visibility": "private",
+        }
+
+        resp = self.session.put(url, json={"model": model})
+        return resp.status_code in (200, 201)
