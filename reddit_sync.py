@@ -203,13 +203,57 @@ def main():
             status = "OK" if success else "FAILED"
             print(f"  [{i}/{len(new_subs)}] r/{sub}: {status}")
 
-    # Create multireddits
+    # Sync multireddits
     if sync_multis:
-        print(f"\nCreating {len(sync_multis)} multireddits...")
+        print("\nFetching target's existing multireddits...")
+        target_multis = target.get_multireddits()
+        target_multi_map = {m["name"].lower(): m for m in target_multis}
+        print(f"Found {len(target_multis)} existing multireddits on target")
+
+        # Ask to delete all first
+        if target_multis and confirm("\nDelete ALL existing multireddits on target first?"):
+            if confirm(f"Delete all {len(target_multis)} multireddits?"):
+                print(f"\nDeleting {len(target_multis)} multireddits...")
+                for i, m in enumerate(target_multis, 1):
+                    success = target.delete_multireddit(m["name"])
+                    status = "OK" if success else "FAILED"
+                    print(f"  [{i}/{len(target_multis)}] {m['name']}: {status}")
+                target_multi_map = {}  # Cleared all
+
+        # Process each source multi
         for m in sync_multis:
-            success = target.create_multireddit(m["name"], m["subreddits"])
-            status = "OK" if success else "FAILED"
-            print(f"  {m['name']}: {status}")
+            source_name = m["name"]
+            source_subs = set(s.lower() for s in m["subreddits"])
+            existing = target_multi_map.get(source_name.lower())
+
+            if not existing:
+                # Create new multi
+                print(f"\nCreating multireddit: {source_name}")
+                success = target.create_multireddit(source_name, m["subreddits"])
+                print(f"  {'OK' if success else 'FAILED'}")
+            else:
+                # Compare and sync differences
+                target_subs = set(s.lower() for s in existing["subreddits"])
+                to_add = source_subs - target_subs
+                to_remove = target_subs - source_subs
+
+                if not to_add and not to_remove:
+                    print(f"\n{source_name}: already in sync")
+                    continue
+
+                print(f"\n{source_name} has differences:")
+                if to_add:
+                    print(f"  Missing {len(to_add)} subs: {', '.join(sorted(to_add)[:5])}{'...' if len(to_add) > 5 else ''}")
+                if to_remove:
+                    print(f"  Extra {len(to_remove)} subs: {', '.join(sorted(to_remove)[:5])}{'...' if len(to_remove) > 5 else ''}")
+
+                if confirm("  Sync this multireddit?"):
+                    for sub in to_add:
+                        success = target.add_sub_to_multi(source_name, sub)
+                        print(f"    + {sub}: {'OK' if success else 'FAILED'}")
+                    for sub in to_remove:
+                        success = target.remove_sub_from_multi(source_name, sub)
+                        print(f"    - {sub}: {'OK' if success else 'FAILED'}")
 
     print("\nSync complete!")
 

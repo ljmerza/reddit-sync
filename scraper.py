@@ -125,6 +125,42 @@ class RedditScraper:
 
         return multis
 
+    def delete_multireddit(self, name):
+        """Delete a multireddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/multi/user/{self.username}/m/{name}"
+        data = {"uh": self.modhash}
+        resp = self.session.delete(url, data=data)
+        return resp.status_code in (200, 201, 204)
+
+    def add_sub_to_multi(self, multi_name, subreddit):
+        """Add a subreddit to an existing multireddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/multi/user/{self.username}/m/{multi_name}/r/{subreddit}"
+        data = {
+            "model": json.dumps({"name": subreddit}),
+            "uh": self.modhash,
+        }
+        resp = self.session.put(url, data=data)
+        return resp.status_code in (200, 201)
+
+    def remove_sub_from_multi(self, multi_name, subreddit):
+        """Remove a subreddit from a multireddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/multi/user/{self.username}/m/{multi_name}/r/{subreddit}"
+        data = {"uh": self.modhash}
+        resp = self.session.delete(url, data=data)
+        return resp.status_code in (200, 201, 204)
+
     def subscribe_to_subreddit(self, subreddit):
         """Subscribe to a subreddit."""
         if not self.modhash:
