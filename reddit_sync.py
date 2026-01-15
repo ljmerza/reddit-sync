@@ -156,6 +156,29 @@ def main():
             status = "OK" if success else "FAILED"
             print(f"  {m['name']}: {status}")
 
+    # Ask to remove extra subs from target
+    if sync_subs and confirm("\nRemove subreddits from target that aren't in source?"):
+        print("\nFetching target's current subscriptions...")
+        target_subs = target.get_subscribed_subreddits()
+
+        source_set = set(s.lower() for s in sync_subs)
+        to_remove = [s for s in target_subs if s.lower() not in source_set]
+
+        if to_remove:
+            print(f"\nFound {len(to_remove)} subreddits to remove:")
+            print("-" * 40)
+            for i, sub in enumerate(to_remove, 1):
+                print(f"  {i:3}. r/{sub}")
+
+            if confirm("\nRemove these subreddits?"):
+                print(f"\nUnsubscribing from {len(to_remove)} subreddits...")
+                for i, sub in enumerate(to_remove, 1):
+                    success = target.unsubscribe_from_subreddit(sub)
+                    status = "OK" if success else "FAILED"
+                    print(f"  [{i}/{len(to_remove)}] r/{sub}: {status}")
+        else:
+            print("No extra subreddits to remove.")
+
     print("\nSync complete!")
 
 

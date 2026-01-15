@@ -123,6 +123,17 @@ class RedditScraper:
         resp = self.session.post(url, data=data)
         return resp.status_code == 200
 
+    def unsubscribe_from_subreddit(self, subreddit):
+        """Unsubscribe from a subreddit."""
+        time.sleep(REQUEST_DELAY)
+        url = f"{BASE_URL}/api/subscribe"
+        data = {
+            "action": "unsub",
+            "sr_name": subreddit,
+        }
+        resp = self.session.post(url, data=data)
+        return resp.status_code == 200
+
     def create_multireddit(self, name, subreddits, description=""):
         """Create a new multireddit."""
         time.sleep(REQUEST_DELAY)
