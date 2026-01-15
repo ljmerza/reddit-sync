@@ -168,40 +168,37 @@ def main():
         print(f"Login failed: {e}")
         return
 
-    # Fetch target's current subscriptions
-    print("\nFetching target's current subscriptions...")
-    target_subs = target.get_subscribed_subreddits()
-    target_subs_lower = set(s.lower() for s in target_subs)
-    print(f"Found {len(target_subs)} existing subscriptions on target")
+    # Sync subreddits
+    if sync_subs:
+        print("\nFetching target's current subscriptions...")
+        target_subs = target.get_subscribed_subreddits()
+        target_subs_lower = set(s.lower() for s in target_subs)
+        print(f"Found {len(target_subs)} existing subscriptions on target")
 
-    # Ask to unsubscribe from all existing subs first
-    if target_subs and confirm("\nUnsubscribe from ALL existing subreddits on target first?"):
-        if confirm(f"Unsubscribe from all {len(target_subs)} subreddits?"):
-            print(f"\nUnsubscribing from {len(target_subs)} subreddits...")
-            for i, sub in enumerate(target_subs, 1):
-                success = target.unsubscribe_from_subreddit(sub)
-                status = "OK" if success else "FAILED"
-                print(f"  [{i}/{len(target_subs)}] r/{sub}: {status}")
-            target_subs_lower = set()  # Cleared all subs
+        # Ask to unsubscribe from all existing subs first
+        if target_subs and confirm("\nUnsubscribe from ALL existing subreddits on target first?"):
+            if confirm(f"Unsubscribe from all {len(target_subs)} subreddits?"):
+                print(f"\nUnsubscribing from {len(target_subs)} subreddits...")
+                for i, sub in enumerate(target_subs, 1):
+                    success = target.unsubscribe_from_subreddit(sub)
+                    status = "OK" if success else "FAILED"
+                    print(f"  [{i}/{len(target_subs)}] r/{sub}: {status}")
+                target_subs_lower = set()  # Cleared all subs
 
-    # Filter out already subscribed subs
-    new_subs = [s for s in sync_subs if s.lower() not in target_subs_lower]
-    skipped = len(sync_subs) - len(new_subs)
-    if skipped > 0:
-        print(f"\nSkipping {skipped} already subscribed subreddits")
+        # Filter out already subscribed subs
+        new_subs = [s for s in sync_subs if s.lower() not in target_subs_lower]
+        skipped = len(sync_subs) - len(new_subs)
+        if skipped > 0:
+            print(f"\nSkipping {skipped} already subscribed subreddits")
 
-    # Confirm before syncing
-    if not confirm(f"\nProceed with sync to {target_user}? ({len(new_subs)} new subs)"):
-        print("Sync cancelled.")
-        return
-
-    # Subscribe to subreddits
-    if new_subs:
-        print(f"\nSubscribing to {len(new_subs)} subreddits...")
-        for i, sub in enumerate(new_subs, 1):
-            success = target.subscribe_to_subreddit(sub)
-            status = "OK" if success else "FAILED"
-            print(f"  [{i}/{len(new_subs)}] r/{sub}: {status}")
+        # Subscribe to subreddits
+        if new_subs:
+            if confirm(f"\nSubscribe to {len(new_subs)} subreddits?"):
+                print(f"\nSubscribing to {len(new_subs)} subreddits...")
+                for i, sub in enumerate(new_subs, 1):
+                    success = target.subscribe_to_subreddit(sub)
+                    status = "OK" if success else "FAILED"
+                    print(f"  [{i}/{len(new_subs)}] r/{sub}: {status}")
 
     # Sync multireddits
     if sync_multis:
