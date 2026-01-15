@@ -1,3 +1,4 @@
+import json
 import time
 import re
 import requests
@@ -171,8 +172,11 @@ class RedditScraper:
             "visibility": "private",
         }
 
-        headers = {"x-modhash": self.modhash}
-        resp = self.session.put(url, json={"model": model}, headers=headers)
+        data = {
+            "model": json.dumps(model),
+            "uh": self.modhash,
+        }
+        resp = self.session.put(url, data=data)
         if resp.status_code not in (200, 201):
             print(f"    DEBUG: status={resp.status_code}, response={resp.text[:200]}")
         return resp.status_code in (200, 201)
