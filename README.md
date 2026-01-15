@@ -2,6 +2,16 @@
 
 Copy subscribed subreddits and multireddits from one Reddit account to another.
 
+## Features
+
+- Sync subscribed subreddits between accounts
+- Copy multireddits to target account
+- Load from previous export file instead of re-scraping
+- Auto-saves backup before syncing
+- Skip already subscribed subreddits (no duplicate API calls)
+- Option to unsubscribe from all target subs first (clean slate)
+- Cookie-based auth (no password needed)
+
 ## Setup
 
 ```bash
@@ -14,10 +24,6 @@ uv sync
 uv run python reddit_sync.py
 ```
 
-The CLI will prompt for:
-1. Source account username + reddit_session cookie
-2. Target account username + reddit_session cookie
-
 ## Getting your reddit_session cookie
 
 1. Open reddit.com in Chrome (logged in)
@@ -25,10 +31,11 @@ The CLI will prompt for:
 3. Find `reddit_session` row, double-click Value, Ctrl+C
 4. Paste when prompted
 
-## What it does
+## Workflow
 
-1. Fetches subscribed subreddits from source account
-2. Fetches multireddits from source account
-3. Saves backup to `data/export_<timestamp>.json`
-4. Subscribes target account to all subreddits
-5. Creates multireddits on target account
+1. Choose source: fetch from account or load from export file
+2. Review subreddits and multireddits to sync
+3. Login to target account
+4. Optionally unsubscribe from all existing target subs
+5. Sync only new subreddits (skips existing)
+6. Create multireddits on target
