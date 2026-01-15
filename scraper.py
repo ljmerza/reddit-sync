@@ -13,6 +13,7 @@ class RedditScraper:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
         self.username = None
+        self.modhash = None
 
     def login(self, username, password):
         """Login to Reddit and store session cookies."""
@@ -49,8 +50,19 @@ class RedditScraper:
         """Load cookies from a dict (exported from browser)."""
         for name, value in cookies_dict.items():
             self.session.cookies.set(name, value, domain=".reddit.com")
-        print(f"DEBUG: Cookies set: {list(cookies_dict.keys())}")
-        print(f"DEBUG: Session cookies: {dict(self.session.cookies)}")
+
+    def fetch_modhash(self):
+        """Fetch the modhash token needed for API actions."""
+        resp = self.session.get(f"{BASE_URL}/api/me.json")
+        try:
+            data = resp.json()
+            self.modhash = data.get("data", {}).get("modhash", "")
+            if self.modhash:
+                print(f"Got modhash token")
+            else:
+                print("WARNING: No modhash in response, actions may fail")
+        except Exception:
+            print(f"WARNING: Failed to get modhash: {resp.text[:100]}")
 
     def get_subscribed_subreddits(self):
         """Scrape all subscribed subreddits."""
@@ -114,28 +126,41 @@ class RedditScraper:
 
     def subscribe_to_subreddit(self, subreddit):
         """Subscribe to a subreddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
         time.sleep(REQUEST_DELAY)
         url = f"{BASE_URL}/api/subscribe"
         data = {
             "action": "sub",
             "sr_name": subreddit,
+            "uh": self.modhash,
         }
         resp = self.session.post(url, data=data)
+        if resp.status_code != 200:
+            print(f"    DEBUG: status={resp.status_code}, response={resp.text[:200]}")
         return resp.status_code == 200
 
     def unsubscribe_from_subreddit(self, subreddit):
         """Unsubscribe from a subreddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
         time.sleep(REQUEST_DELAY)
         url = f"{BASE_URL}/api/subscribe"
         data = {
             "action": "unsub",
             "sr_name": subreddit,
+            "uh": self.modhash,
         }
         resp = self.session.post(url, data=data)
         return resp.status_code == 200
 
     def create_multireddit(self, name, subreddits, description=""):
         """Create a new multireddit."""
+        if not self.modhash:
+            self.fetch_modhash()
+
         time.sleep(REQUEST_DELAY)
         url = f"{BASE_URL}/api/multi/user/{self.username}/m/{name}"
 
@@ -146,5 +171,8 @@ class RedditScraper:
             "visibility": "private",
         }
 
-        resp = self.session.put(url, json={"model": model})
+        headers = {"x-modhash": self.modhash}
+        resp = self.session.put(url, json={"model": model}, headers=headers)
+        if resp.status_code not in (200, 201):
+            print(f"    DEBUG: status={resp.status_code}, response={resp.text[:200]}")
         return resp.status_code in (200, 201)

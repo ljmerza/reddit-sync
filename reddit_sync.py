@@ -140,6 +140,27 @@ def main():
         print(f"Login failed: {e}")
         return
 
+    # Ask to unsubscribe from all existing subs first
+    if confirm("\nUnsubscribe from ALL existing subreddits on target first?"):
+        print("\nFetching target's current subscriptions...")
+        target_subs = target.get_subscribed_subreddits()
+
+        if target_subs:
+            print(f"Found {len(target_subs)} subscriptions on target")
+            if confirm(f"Unsubscribe from all {len(target_subs)} subreddits?"):
+                print(f"\nUnsubscribing from {len(target_subs)} subreddits...")
+                for i, sub in enumerate(target_subs, 1):
+                    success = target.unsubscribe_from_subreddit(sub)
+                    status = "OK" if success else "FAILED"
+                    print(f"  [{i}/{len(target_subs)}] r/{sub}: {status}")
+        else:
+            print("Target has no subscriptions.")
+
+    # Confirm before syncing
+    if not confirm(f"\nProceed with sync to {target_user}?"):
+        print("Sync cancelled.")
+        return
+
     # Subscribe to subreddits
     if sync_subs:
         print(f"\nSubscribing to {len(sync_subs)} subreddits...")
@@ -155,29 +176,6 @@ def main():
             success = target.create_multireddit(m["name"], m["subreddits"])
             status = "OK" if success else "FAILED"
             print(f"  {m['name']}: {status}")
-
-    # Ask to remove extra subs from target
-    if sync_subs and confirm("\nRemove subreddits from target that aren't in source?"):
-        print("\nFetching target's current subscriptions...")
-        target_subs = target.get_subscribed_subreddits()
-
-        source_set = set(s.lower() for s in sync_subs)
-        to_remove = [s for s in target_subs if s.lower() not in source_set]
-
-        if to_remove:
-            print(f"\nFound {len(to_remove)} subreddits to remove:")
-            print("-" * 40)
-            for i, sub in enumerate(to_remove, 1):
-                print(f"  {i:3}. r/{sub}")
-
-            if confirm("\nRemove these subreddits?"):
-                print(f"\nUnsubscribing from {len(to_remove)} subreddits...")
-                for i, sub in enumerate(to_remove, 1):
-                    success = target.unsubscribe_from_subreddit(sub)
-                    status = "OK" if success else "FAILED"
-                    print(f"  [{i}/{len(to_remove)}] r/{sub}: {status}")
-        else:
-            print("No extra subreddits to remove.")
 
     print("\nSync complete!")
 
