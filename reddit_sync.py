@@ -41,7 +41,37 @@ def confirm(message):
 
 def load_from_file():
     """Load subreddits and multis from an export file."""
-    file_path = input("Export file path: ").strip()
+    data_dir = Path(__file__).parent / "data"
+
+    if not data_dir.exists():
+        print("No data folder found.")
+        return None, None, None
+
+    files = sorted(data_dir.glob("export_*.json"), reverse=True)
+
+    if not files:
+        print("No export files found in data folder.")
+        return None, None, None
+
+    print("\nAvailable export files:")
+    print("-" * 40)
+    for i, f in enumerate(files, 1):
+        # Show file info
+        with open(f) as fp:
+            data = json.load(fp)
+        account = data.get("source_account", "unknown")
+        subs = len(data.get("subreddits", []))
+        multis = len(data.get("multireddits", []))
+        print(f"  {i}. {f.name} ({account}: {subs} subs, {multis} multis)")
+
+    choice = input("\nSelect file [1]: ").strip() or "1"
+    try:
+        idx = int(choice) - 1
+        file_path = files[idx]
+    except (ValueError, IndexError):
+        print("Invalid selection.")
+        return None, None, None
+
     with open(file_path) as f:
         data = json.load(f)
 
@@ -49,7 +79,7 @@ def load_from_file():
     multis = data.get("multireddits", [])
     source_user = data.get("source_account", "unknown")
 
-    print(f"Loaded {len(subreddits)} subreddits and {len(multis)} multireddits from {file_path}")
+    print(f"\nLoaded {len(subreddits)} subreddits and {len(multis)} multireddits")
     return subreddits, multis, source_user
 
 
@@ -95,10 +125,8 @@ def main():
     choice = input("Choice [1]: ").strip() or "1"
 
     if choice == "2":
-        try:
-            subreddits, multis, source_user = load_from_file()
-        except Exception as e:
-            print(f"Failed to load file: {e}")
+        subreddits, multis, source_user = load_from_file()
+        if subreddits is None:
             return
     else:
         subreddits, multis, source_user = fetch_from_account()
